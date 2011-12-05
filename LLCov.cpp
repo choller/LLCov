@@ -1,14 +1,14 @@
-//===- Hello.cpp - Example code from "Writing an LLVM Pass" ---------------===//
+//===- LLCov.cpp - Live Coverage Instrumentation Pass for LLVM  -----------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
 // This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// License. See LICENSE-LLVM.TXT for details.
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements two versions of the LLVM "Hello World" pass described
-// in docs/WritingAnLLVMPass.html
+// This file implements a block coverage instrumentation that calls
+// into a runtime library whenever a basic block is executed.
 //
 //===----------------------------------------------------------------------===//
 
