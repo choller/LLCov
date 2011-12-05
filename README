@@ -52,3 +52,57 @@ If you are compiling and linking in a single pass, the -fllcov
 flag will cause the proper linking to happen automatically.
 
 NOTE: LLCov *only* works with debug symbols (-g) enabled.
+
+=== Example ===
+
+To demonstrate how LLCov works, we'll use the example.cpp 
+provided in this project. If you have a look at that file,
+you'll see that it's a simple C++ program that outputs several
+messages based on the argument count (argc). It also sets the
+exit code according to that variable.
+
+We'll first compile the program with LLCov:
+
+$LLVM_ROOT/Debug+Asserts/bin/clang++ -fllcov -g -o example example.cpp
+
+Now we execute the file with a different number of arguments 
+(note that the filename itself is an argument as well):
+
+$ ./example 
+Block executed in file example.cpp, line 3
+One argument
+Block executed in file example.cpp, line 6
+Block executed in file example.cpp, line 16
+Block executed in file example.cpp, line 19
+Block executed in file example.cpp, line 20
+
+$ ./example 1
+Block executed in file example.cpp, line 3
+Two or three arguments
+Block executed in file example.cpp, line 10
+Block executed in file example.cpp, line 16
+Block executed in file example.cpp, line 19
+Block executed in file example.cpp, line 20
+
+$ ./example 1 2
+Block executed in file example.cpp, line 3
+Two or three arguments
+Block executed in file example.cpp, line 10
+Block executed in file example.cpp, line 16
+Block executed in file example.cpp, line 17
+Block executed in file example.cpp, line 20
+
+$ ./example 1 2 3
+Block executed in file example.cpp, line 3
+More than three arguments
+Block executed in file example.cpp, line 13
+Block executed in file example.cpp, line 16
+Block executed in file example.cpp, line 17
+Block executed in file example.cpp, line 20
+
+
+As you can see from the output, some blocks are always executed,
+(e.g. the block at the beginning of the main function (line 3+), the
+basic block containing the if statement (line 16) and a final block
+(line 20)). The other blocks are only executed conditionally as
+indicated by the output.
