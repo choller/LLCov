@@ -1,0 +1,162 @@
+Index: include/clang/Basic/LangOptions.def
+===================================================================
+--- include/clang/Basic/LangOptions.def	(revision 145681)
++++ include/clang/Basic/LangOptions.def	(working copy)
+@@ -122,6 +122,7 @@
+ BENIGN_LANGOPT(ParseUnknownAnytype, 1, 0, "__unknown_anytype")
+ BENIGN_LANGOPT(DebuggerSupport , 1, 0, "debugger support")
+ BENIGN_LANGOPT(AddressSanitizer , 1, 0, "AddressSanitizer enabled")
++BENIGN_LANGOPT(LLCov , 1, 0, "LLCov enabled")
+ 
+ BENIGN_LANGOPT(SpellChecking , 1, 1, "spell-checking")
+ LANGOPT(SinglePrecisionConstants , 1, 0, "treating double-precision floating point constants as single precision constants")
+Index: include/clang/Driver/CC1Options.td
+===================================================================
+--- include/clang/Driver/CC1Options.td	(revision 145681)
++++ include/clang/Driver/CC1Options.td	(working copy)
+@@ -133,6 +133,8 @@
+   HelpText<"Don't generate implicit floating point instructions (x86-only)">;
+ def finstrument_functions : Flag<"-finstrument-functions">,
+   HelpText<"Generate calls to instrument function entry and exit">;
++def fllcov: Flag<"-fllcov">,
++  HelpText<"Enable LLCov instrumentation (live coverage analysis)">;
+ def fno_limit_debug_info : Flag<"-fno-limit-debug-info">,
+   HelpText<"Do not limit debug information produced to reduce size of debug binary">;
+ def fno_merge_all_constants : Flag<"-fno-merge-all-constants">,
+Index: include/clang/Driver/Options.td
+===================================================================
+--- include/clang/Driver/Options.td	(revision 145681)
++++ include/clang/Driver/Options.td	(working copy)
+@@ -337,6 +337,8 @@
+ def flimit_debug_info : Flag<"-flimit-debug-info">, Group<f_Group>,
+   HelpText<"Limit debug information produced to reduce size of debug binary">;
+ def flimited_precision_EQ : Joined<"-flimited-precision=">, Group<f_Group>;
++def fllcov : Flag<"-fllcov">, Group<f_Group>;
++def fno_llcov : Flag<"-fno-llcov">, Group<f_Group>;
+ def flto : Flag<"-flto">, Group<f_Group>;
+ def fno_lto : Flag<"-fno-lto">, Group<f_Group>;
+ def fmacro_backtrace_limit_EQ : Joined<"-fmacro-backtrace-limit=">,
+Index: lib/Frontend/CompilerInvocation.cpp
+===================================================================
+--- lib/Frontend/CompilerInvocation.cpp	(revision 145681)
++++ lib/Frontend/CompilerInvocation.cpp	(working copy)
+@@ -669,6 +669,8 @@
+     Res.push_back("-fcatch-undefined-behavior");
+   if (Opts.AddressSanitizer)
+     Res.push_back("-faddress-sanitizer");
++  if (Opts.LLCov)
++    Res.push_back("-fllcov");
+   if (Opts.WritableStrings)
+     Res.push_back("-fwritable-strings");
+   if (Opts.ConstStrings)
+@@ -1809,6 +1811,7 @@
+   Opts.ParseUnknownAnytype = Args.hasArg(OPT_funknown_anytype);
+   Opts.DebuggerSupport = Args.hasArg(OPT_fdebugger_support);
+   Opts.AddressSanitizer = Args.hasArg(OPT_faddress_sanitizer);
++  Opts.LLCov = Args.hasArg(OPT_fllcov);
+   Opts.ApplePragmaPack = Args.hasArg(OPT_fapple_pragma_pack);
+   Opts.CurrentModule = Args.getLastArgValue(OPT_fmodule_name);
+ 
+Index: lib/Driver/Tools.cpp
+===================================================================
+--- lib/Driver/Tools.cpp	(revision 145681)
++++ lib/Driver/Tools.cpp	(working copy)
+@@ -1121,6 +1121,25 @@
+   TC.AddCXXStdlibLibArgs(Args, CmdArgs);
+ }
+ 
++/// If LLCov is enabled, add appropriate linker flags (Linux).
++static void addLLCovRTLinux(const ToolChain &TC, const ArgList &Args,
++                      ArgStringList &CmdArgs) {
++  // Add llcov linker flags when linking an executable, but not a shared object.
++  if (Args.hasArg(options::OPT_shared) ||
++      !Args.hasFlag(options::OPT_fllcov,
++                    options::OPT_fno_llcov, false))
++    return;
++  // LibLLCov is "../lib/clang/linux/ArchName/libclang_rt.llcov.a
++  llvm::SmallString<128> LibLLCov =
++      llvm::sys::path::parent_path(StringRef(TC.getDriver().Dir));
++  llvm::sys::path::append(LibLLCov, "lib", "clang", "linux", TC.getArchName());
++  llvm::sys::path::append(LibLLCov, "libclang_rt.llcov.a");
++  CmdArgs.push_back(Args.MakeArgString(LibLLCov));
++  CmdArgs.push_back("-ldl");
++  CmdArgs.push_back("-export-dynamic");
++  TC.AddCXXStdlibLibArgs(Args, CmdArgs);
++}
++
+ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
+                          const InputInfo &Output,
+                          const InputInfoList &Inputs,
+@@ -1737,6 +1756,10 @@
+                    options::OPT_fno_address_sanitizer, false))
+     CmdArgs.push_back("-faddress-sanitizer");
+ 
++  if (Args.hasFlag(options::OPT_fllcov,
++                   options::OPT_fno_llcov, false))
++    CmdArgs.push_back("-fllcov");
++
+   // -flax-vector-conversions is default.
+   if (!Args.hasFlag(options::OPT_flax_vector_conversions,
+                     options::OPT_fno_lax_vector_conversions))
+@@ -4492,6 +4515,9 @@
+   // Call this before we add the C run-time.
+   addAsanRTLinux(getToolChain(), Args, CmdArgs);
+ 
++  // Add LLCov RT if instrumentation is requested
++  addLLCovRTLinux(getToolChain(), Args, CmdArgs);
++
+   if (!Args.hasArg(options::OPT_nostdlib)) {
+     if (Args.hasArg(options::OPT_static))
+       CmdArgs.push_back("--start-group");
+Index: lib/Driver/ToolChains.cpp
+===================================================================
+--- lib/Driver/ToolChains.cpp	(revision 145681)
++++ lib/Driver/ToolChains.cpp	(working copy)
+@@ -483,6 +483,17 @@
+     }
+   }
+ 
++  // Add LLCov runtime library, if required.
++  if (Args.hasFlag(options::OPT_fllcov,
++                   options::OPT_fno_llcov, false)) {
++    if (isTargetIPhoneOS()) {
++      getDriver().Diag(diag::err_drv_clang_unsupported_per_platform)
++        << "-fllcov";
++    } else {
++      AddLinkRuntimeLib(Args, CmdArgs, "libclang_rt.llcov_osx.a");
++    }
++  }
++
+   // Otherwise link libSystem, then the dynamic runtime library, and finally any
+   // target specific static runtime library.
+   CmdArgs.push_back("-lSystem");
+Index: lib/CodeGen/BackendUtil.cpp
+===================================================================
+--- lib/CodeGen/BackendUtil.cpp	(revision 145681)
++++ lib/CodeGen/BackendUtil.cpp	(working copy)
+@@ -120,6 +120,11 @@
+   PM.add(createAddressSanitizerPass());
+ }
+ 
++static void addLLCovPass(const PassManagerBuilder &Builder,
++                                    PassManagerBase &PM) {
++  PM.add(createLLCovPass());
++}
++
+ void EmitAssemblyHelper::CreatePasses() {
+   unsigned OptLevel = CodeGenOpts.OptimizationLevel;
+   CodeGenOptions::InliningMethod Inlining = CodeGenOpts.Inlining;
+@@ -153,6 +158,13 @@
+     PMBuilder.addExtension(PassManagerBuilder::EP_EnabledOnOptLevel0,
+                            addAddressSanitizerPass);
+   }
++
++  if (LangOpts.LLCov) {
++    PMBuilder.addExtension(PassManagerBuilder::EP_ScalarOptimizerLate,
++                           addLLCovPass);
++    PMBuilder.addExtension(PassManagerBuilder::EP_EnabledOnOptLevel0,
++                           addLLCovPass);
++  }
+   
+   // Figure out TargetLibraryInfo.
+   Triple TargetTriple(TheModule->getTargetTriple());

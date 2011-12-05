@@ -1,0 +1,54 @@
+== Quick Installation Guide ==
+
+# This guide assumes you have checked out this source
+# and run the following commands in this directory.
+
+# Checkout LLVM
+svn co http://llvm.org/svn/llvm-project/llvm/trunk llvm
+
+# Set LLVM_ROOT to llvm directory
+export LLVM_ROOT=`pwd`/llvm
+
+# Switch to tools directory and checkout Clang
+cd llvm/tools/
+svn co http://llvm.org/svn/llvm-project/cfe/trunk clang
+
+# Switch to clang directoy and apply clang-specific patch
+cd clang
+patch -p0 < ../../../clang-llcov.patch
+
+# Switch to LLVM directory and apply llvm-specific patch
+cd ../..
+patch -p0 < ../llvm-llcov.patch
+
+# Switch back to LLCov project directory
+cd ..
+
+# Install LLCov instrumentation pass source file into LLVM directory
+make srcinstall
+
+# Switch back to LLVM directory and build LLVM/Clang
+cd llvm
+./configure && make -j8
+
+# Switch back to LLCov repository and build runtime libraries
+cd ..
+make
+
+
+== Quick Usage Guide ==
+
+After following the steps above, the Clang compiler you built
+will support the additional switch "-fllcov" which will cause
+the compiled source to be instrumented.
+During linking, you must include LLCov's runtime library by
+either 
+  a) including the libclang_rt.llcov.a (located in 
+     Debug+Asserts/lib/clang/$OS/$ARCH/) (recommended!) 
+or 
+  b) linking to the .so created in bin_$OS.
+
+If you are compiling and linking in a single pass, the -fllcov
+flag will cause the proper linking to happen automatically.
+
+NOTE: LLCov *only* works with debug symbols (-g) enabled.
