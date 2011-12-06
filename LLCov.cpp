@@ -38,21 +38,7 @@ using namespace llvm;
 /* Container class for our list entries */
 struct LLCovListEntry {
 public:
-   LLCovListEntry(const std::string &fileOrFuncName, bool isFunction)
-      : myHasFilename(!isFunction), myHasFunction(isFunction), myHasLine(false),
-        myFilename(), myFunction(), myLine(0) {
-         if (isFunction) { myFunction = fileOrFuncName; }
-         else { myFilename = fileOrFuncName; }
-   }
-   LLCovListEntry(const std::string &fileName, const std::string &funcName)
-      : myHasFilename(true), myHasFunction(true), myHasLine(false),
-        myFilename(fileName), myFunction(funcName), myLine(0) {}
-   LLCovListEntry(const std::string &funcName)
-      : myHasFilename(false), myHasFunction(true), myHasLine(false),
-        myFilename(), myFunction(funcName), myLine(0) {}
-   LLCovListEntry(const std::string &fileName, const std::string &funcName, unsigned int line)
-      : myHasFilename(true), myHasFunction(true), myHasLine(true),
-        myFilename(fileName), myFunction(funcName), myLine(line) {}
+   LLCovListEntry() : myHasLine(false) {}
 
    bool matchFileName(const std::string &fileName) {
       return (fileName == myFilename);
@@ -74,13 +60,23 @@ public:
       return ((line == myLine) && matchFileName(fileName));
    }
 
-   bool hasFilename() { return myHasFilename; }
-   bool hasFunction() { return myHasFunction; }
+   bool hasFilename() { return myFilename.size(); }
+   bool hasFunction() { return myFunction.size(); }
    bool hasLine() { return myHasLine; }
 
+   void setFilename(const std::string &fileName) {
+      myFilename = fileName;
+   }
+
+   void setFunction(const std::string &funcName) {
+         myFunction = funcName;
+   }
+
+   void setLine(unsigned int line) {
+         myLine = line;
+   }
+
 protected:
-   bool myHasFilename;
-   bool myHasFunction;
    bool myHasLine;
    std::string myFilename;
    std::string myFunction;
@@ -202,33 +198,27 @@ LLCovList::LLCovList(const std::string &path) : myEntries() {
           tokStream >> token;
        }
 
-       if (file.size()) {
-          if (func.size()) {
-             if (line.size()) {
-                LLCovListEntry entry(file, func, atoi(line.c_str()));
-                myEntries.push_back(entry);
-             } else {
-                LLCovListEntry entry(file, func);
-                myEntries.push_back(entry);
-             }
-          } else if(line.size()) {
-             LLCovListEntry entry(file, atoi(line.c_str()));
-             myEntries.push_back(entry);
-          } else {
-             LLCovListEntry entry(file, false);
-             myEntries.push_back(entry);
-          }
+       LLCovListEntry entry;
+
+       if ( file.size() ) {
+         entry.setFilename( file );
+
+         if ( func.size() )
+            entry.setFunction( func );
+
+         if ( line.size() )
+            entry.setLine( atoi( line.c_str() ) );
+
+       } else if ( func.size() ) {
+         if ( line.size() )
+            report_fatal_error( "Cannot use line without file in file " + path );
+
+         entry.setFunction( func );
        } else {
-          if (func.size()) {
-             if (line.size()) {
-                report_fatal_error("Cannot use line without file in file " + path);
-             }
-             LLCovListEntry entry(func, true);
-             myEntries.push_back(entry);
-          } else {
-             report_fatal_error("Must either specify file or function in file " + path);
-          }
+         report_fatal_error( "Must either specify file or function in file " + path );
        }
+
+       myEntries.push_back(entry);
 
        getline(fileStream, line);
    }
