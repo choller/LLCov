@@ -235,13 +235,13 @@ LLCovList::LLCovList(const std::string &path) : myEntries() {
 
 /* End of helper classes */
 
-static cl::opt<std::string>  ClBlackListFile("llcov-blacklist",
+/*static cl::opt<std::string>  ClBlackListFile("llcov-blacklist",
           cl::desc("File containing the list of functions/files/lines "
                 "to ignore during instrumentation"), cl::Hidden);
 
 static cl::opt<std::string>  ClWhiteListFile("llcov-whitelist",
           cl::desc("File containing the list of functions/files/lines "
-                "to instrument (all others are ignored)"), cl::Hidden);
+                "to instrument (all others are ignored)"), cl::Hidden);*/
 
 struct LLCov: public ModulePass {
 public:
@@ -263,8 +263,8 @@ char LLCov::ID = 0;
 INITIALIZE_PASS(LLCov, "llcov", "LLCov: allow live coverage measurement of program code.", false, false)
 
 LLCov::LLCov() : ModulePass( ID ), M(NULL),
-      myBlackList(new LLCovList(ClBlackListFile)),
-      myWhiteList(new LLCovList(ClWhiteListFile)) {}
+      myBlackList(new LLCovList(getenv("LLCOV_BLACKLIST") != NULL ? std::string(getenv("LLCOV_BLACKLIST")) : "" )),
+      myWhiteList(new LLCovList(getenv("LLCOV_WHITELIST") != NULL ? std::string(getenv("LLCOV_WHITELIST")) : "" )) {}
 
 bool LLCov::runOnModule( Module &M ) {
    this->M = &M;
