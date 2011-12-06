@@ -199,6 +199,7 @@ LLCovList::LLCovList(const std::string &path) : myEntries() {
              report_fatal_error("Unable to open specified file " + path);
           }
 
+          tokStream >> token;
        }
 
        if (file.size()) {
@@ -357,7 +358,7 @@ bool LLCov::runOnFunction( Function &F, StringRef filename ) {
 
          /* Check white- and blacklists. A blacklist match immediately aborts */
          instrumentBlock |= myWhiteList->doExactMatch(filename, F, Loc.getLine());
-         if (myBlackList->doExactMatch(filename, F, Loc.getLine())) {
+         if (myBlackList->doExactMatch(filename, Loc.getLine())) {
             instrumentBlock = false;
             break;
          }
