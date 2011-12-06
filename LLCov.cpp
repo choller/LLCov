@@ -18,13 +18,230 @@
 #include "llvm/Module.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/DebugInfo.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/IRBuilder.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/system_error.h"
 #include "llvm/Transforms/Instrumentation.h"
+#include "llvm/Type.h"
+
 
 #include <iostream>
+#include <fstream>
+#include <string>
+#include <sstream>
 
 using namespace llvm;
+
+/* Start of helper classes */
+
+/* Container class for our list entries */
+struct LLCovListEntry {
+public:
+   LLCovListEntry(const std::string &fileOrFuncName, bool isFunction)
+      : myHasFilename(!isFunction), myHasFunction(isFunction), myHasLine(false),
+        myFilename(), myFunction(), myLine(0) {
+         if (isFunction) { myFunction = fileOrFuncName; }
+         else { myFilename = fileOrFuncName; }
+   }
+   LLCovListEntry(const std::string &fileName, const std::string &funcName)
+      : myHasFilename(true), myHasFunction(true), myHasLine(false),
+        myFilename(fileName), myFunction(funcName), myLine(0) {}
+   LLCovListEntry(const std::string &funcName)
+      : myHasFilename(false), myHasFunction(true), myHasLine(false),
+        myFilename(), myFunction(funcName), myLine(0) {}
+   LLCovListEntry(const std::string &fileName, const std::string &funcName, unsigned int line)
+      : myHasFilename(true), myHasFunction(true), myHasLine(true),
+        myFilename(fileName), myFunction(funcName), myLine(line) {}
+
+   bool matchFileName(const std::string &fileName) {
+      return (fileName == myFilename);
+   }
+
+   bool matchFuncName(const std::string &funcName) {
+      return (funcName == myFunction);
+   }
+
+   bool matchFileFuncName(const std::string &fileName, const std::string &funcName) {
+      return (matchFileName(fileName) && matchFuncName(funcName));
+   }
+
+   bool matchAll(const std::string &fileName, const std::string &funcName, unsigned int line) {
+      return ((line == myLine) && matchFileFuncName(fileName, funcName));
+   }
+
+   bool matchFileLine(const std::string &fileName, unsigned int line) {
+      return ((line == myLine) && matchFileName(fileName));
+   }
+
+   bool hasFilename() { return myHasFilename; }
+   bool hasFunction() { return myHasFunction; }
+   bool hasLine() { return myHasLine; }
+
+protected:
+   bool myHasFilename;
+   bool myHasFunction;
+   bool myHasLine;
+   std::string myFilename;
+   std::string myFunction;
+   unsigned int myLine;
+};
+
+struct LLCovList {
+public:
+   LLCovList(const std::string &path);
+   virtual bool doCoarseMatch( StringRef filename, Function &F );
+   virtual bool doExactMatch( StringRef filename, Function &F );
+   virtual bool doExactMatch( StringRef filename, Function &F, unsigned int line );
+   virtual bool doExactMatch( StringRef filename, unsigned int line );
+   virtual bool isEmpty() { return myEntries.empty(); }
+protected:
+   virtual bool doMatch(StringRef filename, Function &F, bool exact);
+   std::vector<LLCovListEntry> myEntries;
+};
+
+bool LLCovList::doMatch(StringRef filename, Function &F, bool exact) {
+   /*
+    * Search one entry that mentiones either this file
+    * or this function to return true.
+    */
+   for (std::vector<LLCovListEntry>::iterator it = myEntries.begin(); it != myEntries.end() ; it++ ) {
+      if (exact && it->hasLine()) { continue; }
+      if (it->hasFilename()) {
+         if (exact && it->hasFunction()) {
+            if (it->matchFileFuncName(filename, F.getName().str())) { return true; }
+         } else {
+            if (it->matchFileName(filename)) { return true; }
+         }
+      } else {
+         /* Must have function */
+         if (it->matchFuncName(F.getName().str())) {
+            return true;
+         }
+      }
+   }
+
+   return false;
+}
+
+/* Check if there are any list entries that mention this file OR function */
+bool LLCovList::doCoarseMatch( StringRef filename, Function &F ) {
+   return doMatch(filename, F, false);
+}
+
+/* Check if there are any list entries that mention this file OR function (and no line).
+ * Additionally, if the file is specified, the function must match too. */
+bool LLCovList::doExactMatch( StringRef filename, Function &F ) {
+   return doMatch(filename, F, true);
+}
+
+/* Check if there are any list entries that match all three attributes exactly. */
+bool LLCovList::doExactMatch( StringRef filename, Function &F, unsigned int line ) {
+   for (std::vector<LLCovListEntry>::iterator it = myEntries.begin(); it != myEntries.end() ; it++ ) {
+      if (!it->hasLine() || !it->hasFunction() || !it->hasFilename()) continue;
+      if (it->matchAll(filename, F.getName().str(), line)) return true;
+   }
+   return false;
+}
+
+/* Check if there are any list entries that match the function/line attributes exactly. */
+bool LLCovList::doExactMatch( StringRef filename, unsigned int line ) {
+   for (std::vector<LLCovListEntry>::iterator it = myEntries.begin(); it != myEntries.end() ; it++ ) {
+      if (!it->hasLine() || !it->hasFilename()) continue;
+      if (it->matchFileLine(filename, line)) return true;
+   }
+   return false;
+}
+
+LLCovList::LLCovList(const std::string &path) : myEntries() {
+   /* If no file is specified, do nothing */
+   if (!path.size()) return;
+
+   std::ifstream fileStream;
+   fileStream.open(path.c_str());
+
+   if (!fileStream) {
+      report_fatal_error("Unable to open specified file " + path);
+   }
+
+   std::string line;
+   getline(fileStream, line);
+   while (fileStream) {
+      /* Process one line here */
+       std::string token;
+       std::istringstream tokStream(line);
+
+       std::string file;
+       std::string func;
+       std::string line;
+
+       tokStream >> token;
+       while(tokStream) {
+          /* Process one token here */
+          std::istringstream entryStream(token);
+
+          std::string type;
+          std::string val;
+          getline(entryStream, type, ':');
+          getline(entryStream, val, ':');
+
+          if (type == "file") {
+             file = val;
+          } else if (type == "func") {
+             func = val;
+          } else if (type == "line") {
+             line = val;
+          } else {
+             report_fatal_error("Invalid type \"" + type + "\" in file " + path);
+          }
+
+          if (!entryStream) {
+             report_fatal_error("Unable to open specified file " + path);
+          }
+
+       }
+
+       if (file.size()) {
+          if (func.size()) {
+             if (line.size()) {
+                LLCovListEntry entry(file, func, atoi(line.c_str()));
+                myEntries.push_back(entry);
+             } else {
+                LLCovListEntry entry(file, func);
+                myEntries.push_back(entry);
+             }
+          } else if(line.size()) {
+             LLCovListEntry entry(file, atoi(line.c_str()));
+             myEntries.push_back(entry);
+          } else {
+             LLCovListEntry entry(file, false);
+             myEntries.push_back(entry);
+          }
+       } else {
+          if (func.size()) {
+             if (line.size()) {
+                report_fatal_error("Cannot use line without file in file " + path);
+             }
+             LLCovListEntry entry(func, true);
+             myEntries.push_back(entry);
+          } else {
+             report_fatal_error("Must either specify file or function in file " + path);
+          }
+       }
+
+       getline(fileStream, line);
+   }
+}
+
+/* End of helper classes */
+
+static cl::opt<std::string>  ClBlackListFile("llcov-blacklist",
+          cl::desc("File containing the list of functions/files/lines "
+                "to ignore during instrumentation"), cl::Hidden);
+
+static cl::opt<std::string>  ClWhiteListFile("llcov-whitelist",
+          cl::desc("File containing the list of functions/files/lines "
+                "to instrument (all others are ignored)"), cl::Hidden);
 
 struct LLCov: public ModulePass {
 public:
@@ -38,12 +255,16 @@ protected:
    Constant* getInstrumentationFunction();
 
    Module* M;
+   LLCovList* myBlackList;
+   LLCovList* myWhiteList;
 };
 
 char LLCov::ID = 0;
 INITIALIZE_PASS(LLCov, "llcov", "LLCov: allow live coverage measurement of program code.", false, false)
 
-LLCov::LLCov() : ModulePass( ID ) {}
+LLCov::LLCov() : ModulePass( ID ), M(NULL),
+      myBlackList(new LLCovList(ClBlackListFile)),
+      myWhiteList(new LLCovList(ClWhiteListFile)) {}
 
 bool LLCov::runOnModule( Module &M ) {
    this->M = &M;
@@ -71,18 +292,15 @@ bool LLCov::runOnModule( Module &M ) {
 
    }
 
-   /*for ( Module::iterator F = M.begin(), E = M.end(); F != E; ++F ) {
-      if ( F->isDeclaration() )
-         continue;
-      modified |= runOnFunction( *F );
-   }*/
-
    return modified;
 }
 
 bool LLCov::runOnFunction( Function &F, StringRef filename ) {
    errs() << "Hello: ";
    errs().write_escaped( F.getName() ) << '\n';
+
+   bool instrumentAll = false;
+   bool instrumentSome = false;
 
    /* Iterate over all basic blocks in this function */
    for ( Function::iterator BB = F.begin(), E = F.end(); BB != E; ++BB ) {
@@ -106,19 +324,16 @@ bool LLCov::runOnFunction( Function &F, StringRef filename ) {
 
          // Line
          line = Loc.getLine();
-
-         // File
-         //filename = DISubprogram( Loc.getAsMDNode( BB->getContext() ) ).getFilename();
-
          break;
       }
 
       /* Create arguments for our function */
-      Value* lineVal = ConstantInt::get(Type::getInt32Ty(M->getContext()), line, false);
+      Value* funcNameVal = Builder.CreateGlobalStringPtr(F.getName());
       Value* filenameVal = Builder.CreateGlobalStringPtr(filename);
+      Value* lineVal = ConstantInt::get(Type::getInt32Ty(M->getContext()), line, false);
 
-      /* Add function call: void func(uint8_t[] filename, uint32_t line);  */
-      Builder.CreateCall2( getInstrumentationFunction(), filenameVal, lineVal );
+      /* Add function call: void func(const char* function, const char* filename, uint32_t line);  */
+      Builder.CreateCall3( getInstrumentationFunction(), funcNameVal, filenameVal, lineVal );
    }
 
    return true;
@@ -128,6 +343,7 @@ bool LLCov::runOnFunction( Function &F, StringRef filename ) {
 /* The function returned here will reside in an .so */
 Constant* LLCov::getInstrumentationFunction() {
    Type *Args[] = {
+                    Type::getInt8PtrTy( M->getContext() ), // uint8_t* function
                     Type::getInt8PtrTy( M->getContext() ), // uint8_t* filename
                     Type::getInt32Ty( M->getContext() ) // uint32_t line
          };
