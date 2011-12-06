@@ -296,47 +296,87 @@ bool LLCov::runOnModule( Module &M ) {
 }
 
 bool LLCov::runOnFunction( Function &F, StringRef filename ) {
-   errs() << "Hello: ";
-   errs().write_escaped( F.getName() ) << '\n';
+   //errs() << "Hello: ";
+   //errs().write_escaped( F.getName() ) << '\n';
 
-   bool instrumentAll = false;
-   bool instrumentSome = false;
+   bool ret = false;
+
+   /*
+    * White/BlackList logic: If the whitelist contains something,
+    * then the set of all instrumented blocks is limited to that.
+    * The blacklist can further restrict that set.
+    */
+
+   /*
+    * Determine if the filename, the function, or the combination
+    * of both is whitelisted and the blacklist does not restrict
+    * that further. In that case, we don't need to check any more
+    * lists during the basic block iteration which saves time.
+    */
+   bool instrumentAll = (
+         myWhiteList->isEmpty() // Whitelist is either empty
+         || myWhiteList->doExactMatch(filename, F)) // or must yield a match for function or filename
+         && !myBlackList->doCoarseMatch(filename, F); // and blacklist must not have any coarse matches
+
+   if (myBlackList->doExactMatch(filename, F)) {
+      /*
+       * If the filename, the function, or the combination of both
+       * is on the blacklist, don't do anything here
+       */
+      return false;
+   }
 
    /* Iterate over all basic blocks in this function */
    for ( Function::iterator BB = F.begin(), E = F.end(); BB != E; ++BB ) {
-      TerminatorInst *TI = BB->getTerminator();
-      // TODO: Why do I need the # of successors here?
-      //int Successors = isa<ReturnInst> ( TI ) ? 1 : TI->getNumSuccessors();
-      //if ( Successors ) {
+      bool instrumentBlock = false;
 
-      //}
+      TerminatorInst *TI = BB->getTerminator();
 
       IRBuilder<> Builder( TI );
 
-      //StringRef filename;
+      bool haveLine = false;
       unsigned int line = 0;
 
       /* Iterate over the instructions in the BasicBlock to find line number */
       for ( BasicBlock::iterator I = BB->begin(), IE = BB->end(); I != IE; ++I ) {
          const DebugLoc &Loc = I->getDebugLoc();
+
          if ( Loc.isUnknown() )
             continue;
 
-         // Line
-         line = Loc.getLine();
-         break;
+         /* Save the line if we don't have it yet */
+         if (!haveLine) {
+            line = Loc.getLine();
+            haveLine = true;
+
+            /* No need to iterate further if we know already that we should instrument */
+            if (instrumentAll) {
+               break;
+            }
+         }
+
+         /* Check white- and blacklists. A blacklist match immediately aborts */
+         instrumentBlock |= myWhiteList->doExactMatch(filename, F, Loc.getLine());
+         if (myBlackList->doExactMatch(filename, F, Loc.getLine())) {
+            instrumentBlock = false;
+            break;
+         }
       }
 
-      /* Create arguments for our function */
-      Value* funcNameVal = Builder.CreateGlobalStringPtr(F.getName());
-      Value* filenameVal = Builder.CreateGlobalStringPtr(filename);
-      Value* lineVal = ConstantInt::get(Type::getInt32Ty(M->getContext()), line, false);
+      if (instrumentAll || instrumentBlock) {
+         /* Create arguments for our function */
+         Value* funcNameVal = Builder.CreateGlobalStringPtr(F.getName());
+         Value* filenameVal = Builder.CreateGlobalStringPtr(filename);
+         Value* lineVal = ConstantInt::get(Type::getInt32Ty(M->getContext()), line, false);
 
-      /* Add function call: void func(const char* function, const char* filename, uint32_t line);  */
-      Builder.CreateCall3( getInstrumentationFunction(), funcNameVal, filenameVal, lineVal );
+         /* Add function call: void func(const char* function, const char* filename, uint32_t line);  */
+         Builder.CreateCall3( getInstrumentationFunction(), funcNameVal, filenameVal, lineVal );
+
+         ret = true;
+      }
    }
 
-   return true;
+   return ret;
 }
 
 
