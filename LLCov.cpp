@@ -329,7 +329,12 @@ bool LLCov::runOnFunction( Function &F, StringRef filename ) {
 
    /* Iterate over all basic blocks in this function */
    for ( Function::iterator BB = F.begin(), E = F.end(); BB != E; ++BB ) {
-      bool instrumentBlock = false;
+      /*
+       * If the whitelist is empty, we start with the assumption that we
+       * need to instrument the block (can be changed by blacklist).
+       * If the whitelist is not empty, then the default is to not instrument
+       */
+      bool instrumentBlock = myWhiteList->isEmpty();
 
       TerminatorInst *TI = BB->getTerminator();
 
