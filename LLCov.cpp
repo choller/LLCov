@@ -74,6 +74,7 @@ public:
 
    void setLine(unsigned int line) {
          myLine = line;
+         myHasLine = true;
    }
 
 protected:
@@ -160,12 +161,12 @@ LLCovList::LLCovList(const std::string &path) : myEntries() {
       report_fatal_error("Unable to open specified file " + path);
    }
 
-   std::string line;
-   getline(fileStream, line);
+   std::string configLine;
+   getline(fileStream, configLine);
    while (fileStream) {
       /* Process one line here */
        std::string token;
-       std::istringstream tokStream(line);
+       std::istringstream tokStream(configLine);
 
        std::string file;
        std::string func;
@@ -220,7 +221,7 @@ LLCovList::LLCovList(const std::string &path) : myEntries() {
 
        myEntries.push_back(entry);
 
-       getline(fileStream, line);
+       getline(fileStream, configLine);
    }
 }
 
