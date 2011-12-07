@@ -1,6 +1,6 @@
 == Quick Usage Guide ==
 
-After following the steps above, the Clang compiler you built
+After following the steps in INSTALL, the Clang compiler you built
 will support the additional switch "-fllcov" which will cause
 the compiled source to be instrumented.
 During linking, you must include LLCov's runtime library by
