@@ -1,108 +1,35 @@
-== Quick Installation Guide ==
+For a short installation guide, see the INSTALL file.
 
-# This guide assumes you have checked out this source
-# and run the following commands in this directory.
+For examples on how to use this tool, see HOWTO.
 
-# Checkout LLVM
-svn co http://llvm.org/svn/llvm-project/llvm/trunk llvm
+== Introducing LLCov ==
 
-# Set LLVM_ROOT to llvm directory
-export LLVM_ROOT=`pwd`/llvm
+=== What is LLCov? ===
+LLCov is a C/C++ code instrumentation tool that can be used to measure block coverage.
+Unlike the popular GCOV coverage tool for GCC, LLCov instruments each basic block in 
+the code with a call to an external function (provided by an arbitrary runtime library). 
+In addition, the instrumentation can be limited to parts of the code (e.g. individual 
+files, functions or blocks) to improve performance and focus on the relevant code parts.
+LLCov is based on LLVM and integrates into the Clang C/C++ compiler.
 
-# Switch to tools directory and checkout Clang
-cd llvm/tools/
-svn co http://llvm.org/svn/llvm-project/cfe/trunk clang
+=== Why would I need this? ===
+There are several scenarios where LLCov could aid the development process while GCOV 
+would not be suitable for the purpose:
 
-# Switch to clang directoy and apply clang-specific patch
-cd clang
-patch -p0 < ../../../clang-llcov.patch
-
-# Switch to LLVM directory and apply llvm-specific patch
-cd ../..
-patch -p0 < ../llvm-llcov.patch
-
-# Switch back to LLCov project directory
-cd ..
-
-# Install LLCov instrumentation pass source file into LLVM directory
-make srcinstall
-
-# Switch back to LLVM directory and build LLVM/Clang
-cd llvm
-./configure && make -j8
-
-# Switch back to LLCov repository and build runtime libraries
-cd ..
-make
-
-
-== Quick Usage Guide ==
-
-After following the steps above, the Clang compiler you built
-will support the additional switch "-fllcov" which will cause
-the compiled source to be instrumented.
-During linking, you must include LLCov's runtime library by
-either 
-  a) including the libclang_rt.llcov.a (located in 
-     Debug+Asserts/lib/clang/$OS/$ARCH/) (recommended!) 
-or 
-  b) linking to the .so created in bin_$OS.
-
-If you are compiling and linking in a single pass, the -fllcov
-flag will cause the proper linking to happen automatically.
-
-NOTE: LLCov *only* works with debug symbols (-g) enabled.
-
-=== Example ===
-
-To demonstrate how LLCov works, we'll use the example.cpp 
-provided in this project. If you have a look at that file,
-you'll see that it's a simple C++ program that outputs several
-messages based on the argument count (argc). It also sets the
-exit code according to that variable.
-
-We'll first compile the program with LLCov:
-
-$LLVM_ROOT/Debug+Asserts/bin/clang++ -fllcov -g -o example example.cpp
-
-Now we execute the file with a different number of arguments 
-(note that the filename itself is an argument as well):
-
-$ ./example 
-Block executed in file example.cpp, line 3
-One argument
-Block executed in file example.cpp, line 6
-Block executed in file example.cpp, line 16
-Block executed in file example.cpp, line 19
-Block executed in file example.cpp, line 20
-
-$ ./example 1
-Block executed in file example.cpp, line 3
-Two or three arguments
-Block executed in file example.cpp, line 10
-Block executed in file example.cpp, line 16
-Block executed in file example.cpp, line 19
-Block executed in file example.cpp, line 20
-
-$ ./example 1 2
-Block executed in file example.cpp, line 3
-Two or three arguments
-Block executed in file example.cpp, line 10
-Block executed in file example.cpp, line 16
-Block executed in file example.cpp, line 17
-Block executed in file example.cpp, line 20
-
-$ ./example 1 2 3
-Block executed in file example.cpp, line 3
-More than three arguments
-Block executed in file example.cpp, line 13
-Block executed in file example.cpp, line 16
-Block executed in file example.cpp, line 17
-Block executed in file example.cpp, line 20
-
-
-As you can see from the output, some blocks are always executed,
-(e.g. the block at the beginning of the main function (line 3+), the
-basic block containing the if statement (line 16) and a final block
-(line 20)). The other blocks are only executed conditionally as
-indicated by the output.
+* Instrument only code that is not covered by tests: Almost all projects have one or 
+  more test suites that cover a certain amount of the code base. Adding an 
+  instrumentation to the "untested" code can be helpful for automatic testing tools 
+  to detect when such a part of the code is executed.
+* Instrument only code changed by a patch: Whenever a patch is submitted, only the 
+  code that is changed by the patch could be instrumented, to see if it is covered 
+  by the test suites and to what extent. Only instrumenting the patched part should 
+  provide a great performance boost.
+* Use coverage information while the program is running (as a "feedback"), e.g. in a 
+  fuzzer: If the fuzzer knows that it just covered a piece of code that should be 
+  tested more extensively, it can focus further on that part. This kind of feedback 
+  can also be used to adjust probabilities in the fuzzer automatically to provide a 
+  better balance between different branches during testing.
+* Get coverage information via alternative ways: The runtime library of LLCov can 
+  easily be replaced/extended, e.g. to send all coverage information over a network 
+  link. Wouldn't it be nice to get coverage information from a mobile/embedded device 
+  directly over the network?

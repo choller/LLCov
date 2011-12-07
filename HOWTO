@@ -1,0 +1,99 @@
+== Quick Usage Guide ==
+
+After following the steps above, the Clang compiler you built
+will support the additional switch "-fllcov" which will cause
+the compiled source to be instrumented.
+During linking, you must include LLCov's runtime library by
+either 
+  a) including the libclang_rt.llcov.a (located in 
+     Debug+Asserts/lib/clang/$OS/$ARCH/) (recommended!) 
+or 
+  b) linking to the .so created in bin_$OS.
+
+If you are compiling and linking in a single pass, the -fllcov
+flag will cause the proper linking to happen automatically.
+
+NOTE: LLCov *only* works with debug symbols (-g) enabled.
+
+=== Example ===
+
+To demonstrate how LLCov works, we'll use the example.cpp 
+provided in this project. If you have a look at that file,
+you'll see that it's a simple C++ program that outputs several
+messages based on the argument count (argc). It also sets the
+exit code according to that variable.
+
+We'll first compile the program with LLCov:
+
+$LLVM_ROOT/Debug+Asserts/bin/clang++ -fllcov -g -o example example.cpp
+
+Now we execute the file with a different number of arguments 
+(note that the filename itself is an argument as well):
+
+$ ./example 
+Block executed in file example.cpp, line 3
+One argument
+Block executed in file example.cpp, line 6
+Block executed in file example.cpp, line 16
+Block executed in file example.cpp, line 19
+Block executed in file example.cpp, line 20
+
+$ ./example 1
+Block executed in file example.cpp, line 3
+Two or three arguments
+Block executed in file example.cpp, line 10
+Block executed in file example.cpp, line 16
+Block executed in file example.cpp, line 19
+Block executed in file example.cpp, line 20
+
+$ ./example 1 2
+Block executed in file example.cpp, line 3
+Two or three arguments
+Block executed in file example.cpp, line 10
+Block executed in file example.cpp, line 16
+Block executed in file example.cpp, line 17
+Block executed in file example.cpp, line 20
+
+$ ./example 1 2 3
+Block executed in file example.cpp, line 3
+More than three arguments
+Block executed in file example.cpp, line 13
+Block executed in file example.cpp, line 16
+Block executed in file example.cpp, line 17
+Block executed in file example.cpp, line 20
+
+
+As you can see from the output, some blocks are always executed,
+(e.g. the block at the beginning of the main function (line 3+), the
+basic block containing the if statement (line 16) and a final block
+(line 20)). The other blocks are only executed conditionally as
+indicated by the output.
+
+=== Using black- and whitelists ===
+
+Black- and whitelists allow you to have a fine-grained control over
+what is instrumented and what not. Each list is a file containing
+one entry per line. The files are supplied using the enviroment variables
+LLCOV_BLACKLIST and LLCOV_WHITELIST. Here is an example of list file:
+
+file:example.cpp line:16
+file:example.cpp func:bar
+file:someotherfile.cpp
+func:baz
+
+As a whitelist, this file would mean to instrument line 16 in example.cpp,
+the function bar in example.cpp, everything in someotherfile.cpp and every
+function called "baz". Used as a blacklist file, these would NOT be 
+instrumented. You can also combine the "file", "func" and "line" options 
+in a single entry, although that is probably not too helpful. These three 
+options are the only ones available right now. When specifying only a "func"
+but no "file", specifying a "line" is not allowed as it would be meaningless.
+
+When no whitelist file is in use, the implementation will instrument
+everything that is NOT on the blacklist. When the whitelist file contains
+at least one entry, ONLY those will be instrumented. If the blacklist matches
+any of these, they will not be instrumented (i.e. a blacklist match always
+dominates and will cause the instrumentation not to happen). This behavior
+allows easy combinations of both, e.g. you can specify some files to be
+instrumented in the whitelist but specify certain functions in the blacklist
+that should be left alone.
