@@ -41,7 +41,17 @@ public:
    LLCovListEntry() : myHasLine(false) {}
 
    bool matchFileName(const std::string &fileName) {
-      return (fileName == myFilename);
+      /* 
+       * We don't check for filename equality here because
+       * filenames might actually be full paths. Instead we
+       * check that the actual filename ends in the filename
+       * specified in the list.
+       */
+      if (fileName.length() >= myFilename.length()) {
+         return (fileName.compare(fileName.length() - myFilename.length(), myFilename.length(), myFilename) == 0);
+      } else {
+         return false;
+      }
    }
 
    bool matchFuncName(const std::string &funcName) {
@@ -323,9 +333,10 @@ bool LLCov::runOnFunction( Function &F, StringRef filename ) {
       /*
        * If the whitelist is empty, we start with the assumption that we
        * need to instrument the block (can be changed by blacklist).
-       * If the whitelist is not empty, then the default is to not instrument
+       * If the whitelist is not empty, then the default depends on the whole
+       * file or function being whitelisted entirely.
        */
-      bool instrumentBlock = myWhiteList->isEmpty();
+      bool instrumentBlock = myWhiteList->isEmpty() || myWhiteList->doExactMatch(filename, F);
 
       TerminatorInst *TI = BB->getTerminator();
 
@@ -353,7 +364,7 @@ bool LLCov::runOnFunction( Function &F, StringRef filename ) {
          }
 
          /* Check white- and blacklists. A blacklist match immediately aborts */
-         instrumentBlock |= myWhiteList->doExactMatch(filename, F, Loc.getLine());
+         instrumentBlock = instrumentBlock || myWhiteList->doExactMatch(filename, F, Loc.getLine());
          if (myBlackList->doExactMatch(filename, Loc.getLine())) {
             instrumentBlock = false;
             break;

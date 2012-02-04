@@ -58,7 +58,7 @@ ifeq ($(ARCH), arm)
 endif
 
 CLANG_FLAGS=
-LLVM_BUILD=$(LLVM_ROOT)/Debug+Asserts
+LLVM_BUILD=$(LLVM_ROOT)/build/Release+Asserts
 CLANG_CC=$(LLVM_BUILD)/bin/clang $(CLANG_FLAGS)
 CLANG_CXX=$(LLVM_BUILD)/bin/clang++ $(CLANG_FLAGS)
 
