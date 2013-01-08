@@ -249,6 +249,7 @@ struct LLCov: public ModulePass {
 public:
    static char ID; // Pass identification, replacement for typeid
    LLCov();
+   virtual ~LLCov();
 
    virtual bool runOnModule( Module &M );
 
@@ -259,6 +260,9 @@ protected:
    Module* M;
    LLCovList* myBlackList;
    LLCovList* myWhiteList;
+
+   std::ofstream myLogInstStream;
+   bool myDoLogInstrumentation;
 };
 
 char LLCov::ID = 0;
@@ -266,7 +270,20 @@ INITIALIZE_PASS(LLCov, "llcov", "LLCov: allow live coverage measurement of progr
 
 LLCov::LLCov() : ModulePass( ID ), M(NULL),
       myBlackList(new LLCovList(getenv("LLCOV_BLACKLIST") != NULL ? std::string(getenv("LLCOV_BLACKLIST")) : "" )),
-      myWhiteList(new LLCovList(getenv("LLCOV_WHITELIST") != NULL ? std::string(getenv("LLCOV_WHITELIST")) : "" )) {}
+      myWhiteList(new LLCovList(getenv("LLCOV_WHITELIST") != NULL ? std::string(getenv("LLCOV_WHITELIST")) : "" )),
+      myDoLogInstrumentation(false) {
+      
+      if (getenv("LLCOV_LOGINSTFILE") != NULL) {
+         myDoLogInstrumentation = true;
+         myLogInstStream.open(getenv("LLCOV_LOGINSTFILE"), std::ios::out | std::ios::app);
+      }
+}
+
+LLCov::~LLCov() {
+	if (myDoLogInstrumentation) {
+		myLogInstStream.close();
+	}
+}
 
 bool LLCov::runOnModule( Module &M ) {
    this->M = &M;
@@ -379,6 +396,10 @@ bool LLCov::runOnFunction( Function &F, StringRef filename ) {
 
          /* Add function call: void func(const char* function, const char* filename, uint32_t line);  */
          Builder.CreateCall3( getInstrumentationFunction(), funcNameVal, filenameVal, lineVal );
+
+         if (myDoLogInstrumentation) {
+            myLogInstStream << "file:" << filename.str() << " " << "func:" << F.getName().str() << " " << "line:" << line << std::endl;
+         }
 
          ret = true;
       }
