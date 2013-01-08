@@ -120,7 +120,7 @@ $(BIN):
 	mkdir -p $(BIN)
 
 $(BIN)/%$(SUFF).o: %.cc $(MAKEFILE)
-	$(CXX) $(PIE) $(CFLAGS) -fPIC -c -O2 -fno-exceptions -o $@ -g $< $(LLCOV_FLAGS)
+	$(CXX) $(PIE) $(CFLAGS) -std=c++0x -fPIC -c -O2 -fno-exceptions -o $@ -g $< $(LLCOV_FLAGS)
 
 $(BIN)/%$(SUFF).o: %.c $(MAKEFILE)
 	$(CC) $(PIE) $(CFLAGS) -fPIC -c -O2 -o $@ -g $< $(LLCOV_FLAGS)
