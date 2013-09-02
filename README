@@ -5,6 +5,7 @@ For examples on how to use this tool, see HOWTO.
 == Introducing LLCov ==
 
 === What is LLCov? ===
+
 LLCov is a C/C++ code instrumentation tool that can be used to measure block coverage.
 Unlike the popular GCOV coverage tool for GCC, LLCov instruments each basic block in 
 the code with a call to an external function (provided by an arbitrary runtime library). 
@@ -13,6 +14,7 @@ files, functions or blocks) to improve performance and focus on the relevant cod
 LLCov is based on LLVM and integrates into the Clang C/C++ compiler.
 
 === Why would I need this? ===
+
 There are several scenarios where LLCov could aid the development process while GCOV 
 would not be suitable for the purpose:
 

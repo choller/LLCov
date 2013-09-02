@@ -1,56 +1,50 @@
+Index: lib/Transforms/Instrumentation/CMakeLists.txt
+===================================================================
+--- lib/Transforms/Instrumentation/CMakeLists.txt	(revision 185922)
++++ lib/Transforms/Instrumentation/CMakeLists.txt	(working copy)
+@@ -4,6 +4,7 @@
+   BoundsChecking.cpp
+   EdgeProfiling.cpp
+   GCOVProfiling.cpp
++  LLCov.cpp
+   MemorySanitizer.cpp
+   Instrumentation.cpp
+   OptimalEdgeProfiling.cpp
+Index: lib/Transforms/Instrumentation/Instrumentation.cpp
+===================================================================
+--- lib/Transforms/Instrumentation/Instrumentation.cpp	(revision 185922)
++++ lib/Transforms/Instrumentation/Instrumentation.cpp	(working copy)
+@@ -26,6 +26,7 @@
+   initializeBoundsCheckingPass(Registry);
+   initializeEdgeProfilerPass(Registry);
+   initializeGCOVProfilerPass(Registry);
++  initializeLLCovPass(Registry);
+   initializeOptimalEdgeProfilerPass(Registry);
+   initializePathProfilerPass(Registry);
+   initializeMemorySanitizerPass(Registry);
 Index: include/llvm/Transforms/Instrumentation.h
 ===================================================================
---- include/llvm/Transforms/Instrumentation.h	(revision 145681)
+--- include/llvm/Transforms/Instrumentation.h	(revision 185922)
 +++ include/llvm/Transforms/Instrumentation.h	(working copy)
-@@ -17,6 +17,7 @@
- namespace llvm {
- 
- class ModulePass;
-+class FunctionPass;
- 
- // Insert edge profiling instrumentation
- ModulePass *createEdgeProfilerPass();
-@@ -34,6 +35,9 @@
- // Insert AddressSanitizer (address sanity checking) instrumentation
- ModulePass *createAddressSanitizerPass();
+@@ -58,6 +58,9 @@
+ ModulePass *createGCOVProfilerPass(const GCOVOptions &Options =
+                                    GCOVOptions::getDefault());
  
 +// Insert LLCov (live coverage) instrumentation
 +ModulePass *createLLCovPass();
 +
- } // End llvm namespace
- 
- #endif
+ // Insert AddressSanitizer (address sanity checking) instrumentation
+ FunctionPass *createAddressSanitizerFunctionPass(
+     bool CheckInitOrder = true, bool CheckUseAfterReturn = false,
 Index: include/llvm/InitializePasses.h
 ===================================================================
---- include/llvm/InitializePasses.h	(revision 145681)
+--- include/llvm/InitializePasses.h	(revision 185922)
 +++ include/llvm/InitializePasses.h	(working copy)
-@@ -232,6 +232,7 @@
- void initializeVerifierPass(PassRegistry&);
- void initializeVirtRegMapPass(PassRegistry&);
- void initializeInstSimplifierPass(PassRegistry&);
+@@ -115,6 +115,7 @@
+ void initializeExpandPostRAPass(PassRegistry&);
+ void initializePathProfilerPass(PassRegistry&);
+ void initializeGCOVProfilerPass(PassRegistry&);
 +void initializeLLCovPass(PassRegistry&);
- 
- }
- 
-Index: lib/Transforms/Instrumentation/Instrumentation.cpp
-===================================================================
---- lib/Transforms/Instrumentation/Instrumentation.cpp	(revision 145681)
-+++ lib/Transforms/Instrumentation/Instrumentation.cpp	(working copy)
-@@ -25,6 +25,7 @@
-   initializePathProfilerPass(Registry);
-   initializeGCOVProfilerPass(Registry);
-   initializeAddressSanitizerPass(Registry);
-+  initializeLLCovPass(Registry);
- }
- 
- /// LLVMInitializeInstrumentation - C binding for
-Index: lib/Transforms/Instrumentation/CMakeLists.txt
-===================================================================
---- lib/Transforms/Instrumentation/CMakeLists.txt	(revision 145681)
-+++ lib/Transforms/Instrumentation/CMakeLists.txt	(working copy)
-@@ -6,4 +6,5 @@
-   OptimalEdgeProfiling.cpp
-   PathProfiling.cpp
-   ProfilingUtils.cpp
-+  LLCov.cpp
-   )
+ void initializeAddressSanitizerPass(PassRegistry&);
+ void initializeAddressSanitizerModulePass(PassRegistry&);
+ void initializeMemorySanitizerPass(PassRegistry&);

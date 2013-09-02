@@ -4,14 +4,14 @@
 # and run the following commands in this directory.
 
 # Checkout LLVM
-svn co http://llvm.org/svn/llvm-project/llvm/trunk llvm
+svn co http://llvm.org/svn/llvm-project/llvm/branches/release_33 llvm
 
 # Set LLVM_ROOT to llvm directory
 export LLVM_ROOT=`pwd`/llvm
 
 # Switch to tools directory and checkout Clang
 cd llvm/tools/
-svn co http://llvm.org/svn/llvm-project/cfe/trunk clang
+svn co http://llvm.org/svn/llvm-project/cfe/branches/release_33 clang
 
 # Switch to clang directoy and apply clang-specific patch
 cd clang
