@@ -58,7 +58,7 @@ ifeq ($(ARCH), arm)
 endif
 
 CLANG_FLAGS=
-LLVM_BUILD=$(LLVM_ROOT)/Debug+Asserts
+LLVM_BUILD=$(LLVM_ROOT)/build/Release+Asserts
 CLANG_CC=$(LLVM_BUILD)/bin/clang $(CLANG_FLAGS)
 CLANG_CXX=$(LLVM_BUILD)/bin/clang++ $(CLANG_FLAGS)
 
@@ -120,7 +120,7 @@ $(BIN):
 	mkdir -p $(BIN)
 
 $(BIN)/%$(SUFF).o: %.cc $(MAKEFILE)
-	$(CXX) $(PIE) $(CFLAGS) -fPIC -c -O2 -fno-exceptions -o $@ -g $< $(LLCOV_FLAGS)
+	$(CXX) $(PIE) $(CFLAGS) -std=c++0x -fPIC -c -O2 -fno-exceptions -o $@ -g $< $(LLCOV_FLAGS)
 
 $(BIN)/%$(SUFF).o: %.c $(MAKEFILE)
 	$(CC) $(PIE) $(CFLAGS) -fPIC -c -O2 -o $@ -g $< $(LLCOV_FLAGS)
