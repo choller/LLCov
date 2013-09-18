@@ -449,28 +449,20 @@ bool LLCov::runOnFunction( Function &F, StringRef filename ) {
 
          if ( Loc.isUnknown() )
             continue;
-            /*while (true) {
-                DebugLoc InlinedAtDL = DebugLoc::getFromDILocation(Loc.getInlinedAt(M->getContext()));
-                if (InlinedAtDL.isUnknown()) {
-                    break;
-                } else {
-                    //myLogInstStream << "Resolved" << std::endl;
-                    Loc = InlinedAtDL;
-                }
-            }*/
 
-            
          DILocation cDILoc(Loc.getAsMDNode(M->getContext()));
          DILocation oDILoc = cDILoc.getOrigLocation();
-        
-         unsigned int instLine = oDILoc.getLineNumber();
+         
+	 unsigned int instLine = oDILoc.getLineNumber();
          StringRef instFilename = oDILoc.getFilename();
 
-         if (instFilename.str().empty()) continue;
-
-
-        //  myLogInstStream << Loc.getLine() << std::endl;
-            //myLogInstStream << "Instruction Location: " << Loc.getLine() << std::endl;
+         if (instFilename.str().empty()) {
+	    /* If the original location is empty, use the actual location */
+            instFilename = cDILoc.getFilename();
+            instLine = cDILoc.getLineNumber();
+	    /* If that fails as well (no location at all), skip this block */
+            if (instFilename.str().empty()) continue;
+         }
 
          /* Save the line if we don't have it yet */
          if (!haveLine) {
@@ -544,7 +536,7 @@ bool LLCov::runOnFunction( Function &F, StringRef filename ) {
          ret = true;
       } else {
 	if (myDoLogInstrumentationDebug && myDoLogInstrumentation) {
-	    myLogInstStream << "DEBUG: " << myWhiteList->doExactMatch(filename, F) << " " << blockFilename.str() << " " << filename.str() << std::endl;
+	    myLogInstStream << "DEBUG: " << myWhiteList->doExactMatch(filename, F) << instrumentAll << haveLine << (blockFilename == filename) << instrumentBlock << " " << blockFilename.str() << " " << filename.str() << std::endl;
 	}
       }
    }
