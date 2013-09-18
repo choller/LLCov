@@ -33,7 +33,7 @@ extern "C" void llvm_llcov_block_call(const char* funcname, const char* filename
 	    fprintf(stderr, "Assertion failure: LLCov: Block executed in file %s, line %u (function %s, line-relative block %u)\n", filename, line, funcname, relblock);
         abort();
     } else if (getenv("LLCOV_STDERR")) {
-        fprintf(stderr, "file:%s line:%u function:%s relblock:%u\n", filename, line, funcname, relblock);
+        fprintf(stderr, "file:%s line:%u func:%s relblock:%u\n", filename, line, funcname, relblock);
     } else if (getenv("LLCOV_FILE")) {
         filefd = fopen(getenv("LLCOV_FILE"), "a");
         if (filefd != NULL) {
