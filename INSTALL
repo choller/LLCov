@@ -1,36 +1,16 @@
 == Quick Installation Guide ==
 
-# This guide assumes you have checked out this source
-# and run the following commands in this directory.
+# If your llvm-config, clang and clang++ are on PATH, simply run
 
-# Checkout LLVM
-svn co http://llvm.org/svn/llvm-project/llvm/branches/release_33 llvm
-
-# Set LLVM_ROOT to llvm directory
-export LLVM_ROOT=`pwd`/llvm
-
-# Switch to tools directory and checkout Clang
-cd llvm/tools/
-svn co http://llvm.org/svn/llvm-project/cfe/branches/release_33 clang
-
-# Switch to clang directoy and apply clang-specific patch
-cd clang
-patch -p0 < ../../../clang-llcov.patch
-
-# Switch to LLVM directory and apply llvm-specific patch
-cd ../..
-patch -p0 < ../llvm-llcov.patch
-
-# Switch back to LLCov project directory
-cd ..
-
-# Install LLCov instrumentation pass source file into LLVM directory
-make srcinstall
-
-# Switch back to LLVM directory and build LLVM/Clang
-cd llvm
-./configure && make -j8
-
-# Switch back to LLCov repository and build runtime libraries
-cd ..
 make
+
+# You can additionally specify the location of your binaries, e.g.:
+
+LLVM_CONFIG=llvm-config-3.7 CC=clang-3.7 CXX=clang++-3.7 make
+
+
+# If you want to build with LLVM 3.4, 3.5 or 3.6, you need to pass a define, e.g.:
+
+LLVM_CONFIG=llvm-config-3.6 CC=clang-3.6 CXX=clang++-3.6 CXXFLAGS="-DLLVM36" make
+
+# Currently, LLVM34, LLVM35 and LLVM36 defines are supported.

@@ -1,19 +1,17 @@
 == Quick Usage Guide ==
 
-After following the steps in INSTALL, the Clang compiler you built
-will support the additional switch "-fllcov" which will cause
-the compiled source to be instrumented.
-During linking, you must include LLCov's runtime library by
-either 
-  a) including the libclang_rt.llcov.a (located in 
-     Debug+Asserts/lib/clang/$OS/$ARCH/) (recommended!) 
-or 
-  b) linking to the .so created in bin_$OS.
+After following the steps in INSTALL, you will find a wrapper
+binary in this directory called llcov-clang.
 
-If you are compiling and linking in a single pass, the -fllcov
-flag will cause the proper linking to happen automatically.
+Using this wrapper instead of the regular CC and CXX, you can
+build your programs easily with LLCov support.
 
-NOTE: LLCov *only* works with debug symbols (-g) enabled.
+The code in llcov-llvm-rt.o.cc is automatically linked to your
+executable program and the default implementation supports:
+
+* Printing to stderr (run program with LLCOV_STDERR=1)
+* Printing to a file (run program with LLCOV_FILE=yourfile)
+* Aborting (run program with LLCOV_ABORT=1)
 
 === Example ===
 
@@ -25,9 +23,13 @@ exit code according to that variable.
 
 We'll first compile the program with LLCov:
 
-$LLVM_ROOT/Debug+Asserts/bin/clang++ -fllcov -g -o example example.cpp
+$ ./llcov-clang++ -o example example.cpp
 
-Now we execute the file with a different number of arguments 
+If your clang and clang++ binaries are not on PATH, you need to specify them:
+
+$ CC=/usr/bin/clang-3.7 CXX=/usr/bin/clang++-3.7 ./llcov-clang++ -o example example.cpp
+
+Now we run the file with a different number of arguments 
 (note that the filename itself is an argument as well):
 
 $ ./example 
