@@ -471,7 +471,7 @@ bool LLCov::runOnFunction( Function &F, StringRef filename ) {
             continue;
 
 #ifdef LLVM_OLD_DEBUG_API
-        DILocation cDILoc(Loc.getAsMDNode(M.getContext()));
+        DILocation cDILoc(Loc.getAsMDNode(M->getContext()));
         DILocation oDILoc = cDILoc.getOrigLocation();
 
         unsigned int instLine = oDILoc.getLineNumber();
